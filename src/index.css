@@ -221,7 +221,7 @@ code, .mono { font-family: var(--mono); }
 
 .field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
 
-.field input {
+.field input, .field select {
   background: var(--panel-2);
   border: 1px solid var(--border);
   border-radius: 9px;
@@ -232,7 +232,7 @@ code, .mono { font-family: var(--mono); }
   outline: none;
   transition: border-color 0.15s ease;
 }
-.field input:focus { border-color: var(--amber); }
+.field input:focus, .field select:focus { border-color: var(--amber); }
 
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 

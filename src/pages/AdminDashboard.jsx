@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { UploadCloud, Loader2, RefreshCw, Search, Sparkles, ImageOff } from "lucide-react";
+import { UploadCloud, Loader2, RefreshCw, Search, Sparkles, ImageOff, Pencil } from "lucide-react";
 import api from "../api/axios.js";
 import LinkCard from "../components/LinkCard.jsx";
 
@@ -10,6 +10,10 @@ export default function AdminDashboard() {
   const [form, setForm] = useState(emptyForm);
   const [imagePath, setImagePath] = useState("");
   const [imagePreview, setImagePreview] = useState("");
+  const [aspectRatio, setAspectRatio] = useState("landscape");
+  const [imageWidth, setImageWidth] = useState(1200);
+  const [imageHeight, setImageHeight] = useState(630);
+  const [editingLink, setEditingLink] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
@@ -47,17 +51,46 @@ export default function AdminDashboard() {
     setUploading(true);
     try {
       const body = new FormData();
+      body.append("aspectRatio", aspectRatio);
       body.append("image", file);
       const { data } = await api.post("/upload", body, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       setImagePath(data.image);
+      setImageWidth(data.width || 1200);
+      setImageHeight(data.height || 630);
     } catch {
       setError("Image upload failed. Is the local server running (npm run dev)?");
       setImagePath("");
     } finally {
       setUploading(false);
     }
+  };
+
+  const handleEditSelect = (link) => {
+    setEditingLink(link);
+    setForm({
+      targetUrl: link.targetUrl,
+      customCode: link.shortCode,
+      title: link.title || "",
+      description: link.description || "",
+    });
+    setImagePath(link.image || "");
+    setImagePreview(link.image || "");
+    const w = link.imageWidth || 1200;
+    const h = link.imageHeight || 630;
+    setImageWidth(w);
+    setImageHeight(h);
+    setAspectRatio(w === 1024 ? "square" : "landscape");
+  };
+
+  const handleCancelEdit = () => {
+    setEditingLink(null);
+    setForm(emptyForm);
+    setImagePath("");
+    setImagePreview("");
+    setImageWidth(1200);
+    setImageHeight(630);
   };
 
   const handleCreate = async (e) => {
@@ -71,16 +104,32 @@ export default function AdminDashboard() {
 
     setCreating(true);
     try {
-      await api.post("/links", {
-        targetUrl: form.targetUrl.trim(),
-        image: imagePath,
-        title: form.title.trim(),
-        description: form.description.trim(),
-        customCode: form.customCode.trim() || undefined,
-      });
+      if (editingLink) {
+        await api.put(`/links/${editingLink.shortCode}`, {
+          targetUrl: form.targetUrl.trim(),
+          image: imagePath,
+          imageWidth,
+          imageHeight,
+          title: form.title.trim(),
+          description: form.description.trim(),
+        });
+      } else {
+        await api.post("/links", {
+          targetUrl: form.targetUrl.trim(),
+          image: imagePath,
+          imageWidth,
+          imageHeight,
+          title: form.title.trim(),
+          description: form.description.trim(),
+          customCode: form.customCode.trim() || undefined,
+        });
+      }
       setForm(emptyForm);
       setImagePath("");
       setImagePreview("");
+      setImageWidth(1200);
+      setImageHeight(630);
+      setEditingLink(null);
       await loadLinks();
     } catch (err) {
       setError(err?.response?.data?.error || "Couldn't create the short link.");
@@ -143,7 +192,8 @@ export default function AdminDashboard() {
       <div className="admin-grid">
         <form className="panel form-panel" onSubmit={handleCreate}>
           <h2 className="panel-title">
-            <Sparkles size={16} /> New short link
+            {editingLink ? <Pencil size={16} /> : <Sparkles size={16} />}
+            {editingLink ? `Edit short link (/s/${editingLink.shortCode})` : "New short link"}
           </h2>
 
           <label className="field">
@@ -160,9 +210,10 @@ export default function AdminDashboard() {
           <label className="field">
             <span>Custom short code (optional)</span>
             <input
-              placeholder="Leave blank to auto-generate"
+              placeholder={editingLink ? "Short code cannot be changed" : "Leave blank to auto-generate"}
               value={form.customCode}
               onChange={(e) => setForm({ ...form, customCode: e.target.value })}
+              disabled={!!editingLink}
             />
           </label>
 
@@ -186,14 +237,29 @@ export default function AdminDashboard() {
           </div>
 
           <label className="field">
+            <span>Target Aspect Ratio for all uploads</span>
+            <select
+              value={aspectRatio}
+              onChange={(e) => setAspectRatio(e.target.value)}
+              style={{ marginTop: "2px", marginBottom: "10px" }}
+            >
+              <option value="landscape">1.91:1 Landscape (1200×630)</option>
+              <option value="square">1:1 Square (1024×1024)</option>
+            </select>
+          </label>
+
+          <label className="field">
             <span>Open Graph image</span>
-            <label className="upload-drop">
+            <label
+              className="upload-drop"
+              style={{ aspectRatio: aspectRatio === "square" ? "1 / 1" : "1200 / 630" }}
+            >
               {imagePreview ? (
                 <img src={imagePreview} alt="OG preview" />
               ) : (
                 <div className="upload-placeholder">
                   <UploadCloud size={20} />
-                  <span>Click to upload — auto-resized to 1200×630</span>
+                  <span>Click to upload — auto-resized to {aspectRatio === "square" ? "1024×1024" : "1200×630"}</span>
                 </div>
               )}
               <input type="file" accept="image/*" hidden onChange={handleImageSelect} />
@@ -207,10 +273,17 @@ export default function AdminDashboard() {
 
           {error && <p className="form-error">{error}</p>}
 
-          <button className="btn btn-primary" type="submit" disabled={creating || uploading}>
-            {creating ? <Loader2 size={15} className="spin" /> : <Sparkles size={15} />}
-            Generate short link
-          </button>
+          <div style={{ display: "flex", gap: "10px" }}>
+            <button className="btn btn-primary" style={{ flex: 1 }} type="submit" disabled={creating || uploading}>
+              {creating ? <Loader2 size={15} className="spin" /> : editingLink ? <Pencil size={15} /> : <Sparkles size={15} />}
+              {editingLink ? "Update short link" : "Generate short link"}
+            </button>
+            {editingLink && (
+              <button className="btn btn-ghost" type="button" onClick={handleCancelEdit} disabled={creating || uploading}>
+                Cancel
+              </button>
+            )}
+          </div>
         </form>
 
         <div className="panel table-panel">
@@ -238,7 +311,9 @@ export default function AdminDashboard() {
                   link={link}
                   siteOrigin={siteOrigin}
                   deletable
+                  editable
                   onDelete={handleDelete}
+                  onEdit={handleEditSelect}
                 />
               ))}
             </div>

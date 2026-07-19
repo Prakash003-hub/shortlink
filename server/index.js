@@ -41,14 +41,22 @@ app.post("/api/upload", upload.single("image"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No image uploaded" });
 
+    const aspectRatio = req.body.aspectRatio || "landscape";
+    let width = 1200;
+    let height = 630;
+    if (aspectRatio === "square") {
+      width = 1024;
+      height = 1024;
+    }
+
     const image = await Jimp.read(req.file.buffer);
-    image.cover(1200, 630).quality(85);
+    image.cover(width, height).quality(85);
 
     const filename = `${nanoid(10)}.jpg`;
     const outPath = path.join(uploadsPath, filename);
     await image.writeAsync(outPath);
 
-    res.json({ image: `/uploads/${filename}` });
+    res.json({ image: `/uploads/${filename}`, width, height });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Image processing failed" });
@@ -62,7 +70,7 @@ app.get("/api/links", (req, res) => {
 
 // ---- Create link ----
 app.post("/api/links", (req, res) => {
-  const { targetUrl, image, title, description, customCode } = req.body;
+  const { targetUrl, image, imageWidth, imageHeight, title, description, customCode } = req.body;
 
   if (!targetUrl || !/^https?:\/\//i.test(targetUrl)) {
     return res.status(400).json({ error: "A valid targetUrl (http/https) is required" });
@@ -88,6 +96,8 @@ app.post("/api/links", (req, res) => {
     shortCode,
     targetUrl,
     image: image || "",
+    imageWidth: imageWidth || 1200,
+    imageHeight: imageHeight || 630,
     title: title || "",
     description: description || "",
     createdAt: new Date().toISOString().slice(0, 10),
@@ -98,6 +108,39 @@ app.post("/api/links", (req, res) => {
   generateAllStatic(links);
 
   res.status(201).json(link);
+});
+
+// ---- Update link ----
+app.put("/api/links/:code", (req, res) => {
+  const { targetUrl, image, imageWidth, imageHeight, title, description } = req.body;
+  const code = req.params.code;
+
+  if (targetUrl && !/^https?:\/\//i.test(targetUrl)) {
+    return res.status(400).json({ error: "A valid targetUrl (http/https) is required" });
+  }
+
+  const links = readLinks();
+  const index = links.findIndex((l) => l.shortCode === code);
+
+  if (index === -1) {
+    return res.status(404).json({ error: "Short code not found" });
+  }
+
+  const updatedLink = {
+    ...links[index],
+    targetUrl: targetUrl || links[index].targetUrl,
+    image: image !== undefined ? image : links[index].image,
+    imageWidth: imageWidth !== undefined ? imageWidth : links[index].imageWidth,
+    imageHeight: imageHeight !== undefined ? imageHeight : links[index].imageHeight,
+    title: title !== undefined ? title : links[index].title,
+    description: description !== undefined ? description : links[index].description,
+  };
+
+  links[index] = updatedLink;
+  writeLinks(links);
+  generateAllStatic(links);
+
+  res.json(updatedLink);
 });
 
 // ---- Delete link ----

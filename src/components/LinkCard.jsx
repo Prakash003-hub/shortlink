@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Copy, Check, ExternalLink, Trash2 } from "lucide-react";
+import { Copy, Check, ExternalLink, Trash2, Pencil } from "lucide-react";
 
 function hostFrom(url) {
   try {
@@ -9,7 +9,7 @@ function hostFrom(url) {
   }
 }
 
-export default function LinkCard({ link, siteOrigin, onDelete, deletable = false }) {
+export default function LinkCard({ link, siteOrigin, onDelete, onEdit, deletable = false, editable = false }) {
   const [copied, setCopied] = useState(false);
   const shortUrl = `${siteOrigin}/s/${link.shortCode}`;
 
@@ -50,6 +50,12 @@ export default function LinkCard({ link, siteOrigin, onDelete, deletable = false
             {copied ? <Check size={14} /> : <Copy size={14} />}
             {copied ? "Copied" : "Copy link"}
           </button>
+          {editable && (
+            <button className="btn btn-ghost btn-sm" onClick={() => onEdit?.(link)}>
+              <Pencil size={13} />
+              Edit
+            </button>
+          )}
           {deletable && (
             <button className="btn btn-danger-ghost btn-sm" onClick={() => onDelete?.(link.shortCode)}>
               <Trash2 size={14} />
