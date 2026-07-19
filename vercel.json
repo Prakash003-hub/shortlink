@@ -2,8 +2,11 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "cleanUrls": true,
-  "trailingSlash": true,
   "rewrites": [
-    { "source": "/((?!s/|data/|uploads/|assets/).*)", "destination": "/index.html" }
+    { "source": "/s/:path*", "destination": "/s/:path*" },
+    { "source": "/data/:path*", "destination": "/data/:path*" },
+    { "source": "/uploads/:path*", "destination": "/uploads/:path*" },
+    { "source": "/assets/:path*", "destination": "/assets/:path*" },
+    { "source": "/:path*", "destination": "/index.html" }
   ]
 }
